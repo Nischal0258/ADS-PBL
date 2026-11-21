@@ -2,12 +2,12 @@
  * ============================================================================
  * Project: Music Playlist Management System
  * Course:  Data Structures (20CS21001) / ADS PBL
+ * Student: Sai Prabhavati
  * Platform: Windows Console (C Language)
  *
  * Core Data Structures Used:
- *  1. Doubly Linked List : Dynamic active playlist management (bidirectional navigation)
- *  2. Stack              : Recently played songs history (LIFO backtracking)
- *  3. Queue              : "Up Next" upcoming play queue (FIFO request processing)
+ *  1. Doubly Linked List : Dynamic playlist management (bidirectional links)
+ *  2. Stack              : Recently played history (LIFO backtracking)
  * ============================================================================
  */
 
@@ -25,7 +25,7 @@
  * ============================================================================
  */
 
-// Structure representing a single Song in the Doubly Linked List
+// Doubly Linked List Node for Active Playlist
 typedef struct Song {
     int id;
     char title[MAX_STR];
@@ -35,57 +35,39 @@ typedef struct Song {
     struct Song *next;
 } Song;
 
-// Structure for Stack Node (Recently Played History)
+// Stack Node for Recently Played History
 typedef struct HistoryNode {
     Song *song;
     struct HistoryNode *next;
 } HistoryNode;
 
-// Stack container for playback history
 typedef struct {
     HistoryNode *top;
     int count;
 } HistoryStack;
 
-// Structure for Queue Node ("Play Next" / Up Next queue)
-typedef struct QueueNode {
-    Song *song;
-    struct QueueNode *next;
-} QueueNode;
-
-// Queue container for upcoming song queue
-typedef struct {
-    QueueNode *front;
-    QueueNode *rear;
-    int count;
-} SongQueue;
-
 /* ============================================================================
- * GLOBAL POINTERS & STATE
+ * GLOBAL STATE
  * ============================================================================
  */
 Song *head = NULL;
 Song *tail = NULL;
 Song *currentSong = NULL;
 int songIdCounter = 1;
-int isLoopMode = 0; // 0 = standard playback, 1 = repeat playlist
 
 HistoryStack history = { NULL, 0 };
-SongQueue upNextQueue = { NULL, NULL, 0 };
 
 /* ============================================================================
  * UTILITY FUNCTIONS
  * ============================================================================
  */
 
-// Format seconds into MM:SS string
 void formatTime(int totalSeconds, char *buffer) {
     int minutes = totalSeconds / 60;
     int seconds = totalSeconds % 60;
     sprintf(buffer, "%02d:%02d", minutes, seconds);
 }
 
-// Case-insensitive string search helper
 int strCaseContains(const char *haystack, const char *needle) {
     char h[MAX_STR], n[MAX_STR];
     int i;
@@ -96,7 +78,6 @@ int strCaseContains(const char *haystack, const char *needle) {
     return (strstr(h, n) != NULL);
 }
 
-// Trim trailing newline and spaces
 void trimNewline(char *str) {
     int len = (int)strlen(str);
     while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r' || str[len - 1] == ' ')) {
@@ -105,7 +86,6 @@ void trimNewline(char *str) {
     }
 }
 
-// Clear input buffer
 void clearInputBuffer(void) {
     int c;
     while ((c = getchar()) != '\n' && c != EOF);
@@ -126,19 +106,9 @@ void pushHistory(Song *s) {
     history.count++;
 }
 
-Song *popHistory(void) {
-    if (history.top == NULL) return NULL;
-    HistoryNode *temp = history.top;
-    Song *song = temp->song;
-    history.top = history.top->next;
-    free(temp);
-    history.count--;
-    return song;
-}
-
 void displayHistory(void) {
     printf("\n================================================================\n");
-    printf("                  RECENTLY PLAYED HISTORY (STACK - LIFO)        \n");
+    printf("                  RECENTLY PLAYED HISTORY (LIFO STACK)          \n");
     printf("================================================================\n");
     if (history.top == NULL) {
         printf(" [!] History is empty. No songs have been played yet.\n");
@@ -155,67 +125,11 @@ void displayHistory(void) {
                index++, curr->song->id, curr->song->title, curr->song->artist, timeStr);
         curr = curr->next;
     }
-    printf(" Total entries in history: %d\n", history.count);
+    printf(" Total songs in history: %d\n", history.count);
 }
 
 /* ============================================================================
- * 3. QUEUE OPERATIONS ("Play Next" / Up Next - FIFO)
- * ============================================================================
- */
-
-void enqueueSong(Song *s) {
-    if (s == NULL) return;
-    QueueNode *newNode = (QueueNode *)malloc(sizeof(QueueNode));
-    if (!newNode) return;
-    newNode->song = s;
-    newNode->next = NULL;
-
-    if (upNextQueue.rear == NULL) {
-        upNextQueue.front = upNextQueue.rear = newNode;
-    } else {
-        upNextQueue.rear->next = newNode;
-        upNextQueue.rear = newNode;
-    }
-    upNextQueue.count++;
-}
-
-Song *dequeueSong(void) {
-    if (upNextQueue.front == NULL) return NULL;
-    QueueNode *temp = upNextQueue.front;
-    Song *s = temp->song;
-    upNextQueue.front = upNextQueue.front->next;
-    if (upNextQueue.front == NULL) {
-        upNextQueue.rear = NULL;
-    }
-    free(temp);
-    upNextQueue.count--;
-    return s;
-}
-
-void displayQueue(void) {
-    printf("\n================================================================\n");
-    printf("                     UP NEXT QUEUE (FIFO)                       \n");
-    printf("================================================================\n");
-    if (upNextQueue.front == NULL) {
-        printf(" [!] Queue is empty. No songs waiting in 'Play Next' queue.\n");
-        return;
-    }
-    QueueNode *curr = upNextQueue.front;
-    int index = 1;
-    char timeStr[16];
-    printf(" %-4s | %-4s | %-25s | %-20s | %-8s\n", "Pos", "ID", "Title", "Artist", "Duration");
-    printf("----------------------------------------------------------------\n");
-    while (curr != NULL) {
-        formatTime(curr->song->duration, timeStr);
-        printf(" #%-3d | %-4d | %-25s | %-20s | %-8s\n",
-               index++, curr->song->id, curr->song->title, curr->song->artist, timeStr);
-        curr = curr->next;
-    }
-    printf(" Total songs in queue: %d\n", upNextQueue.count);
-}
-
-/* ============================================================================
- * 4. DOUBLY LINKED LIST (PLAYLIST) OPERATIONS
+ * 3. DOUBLY LINKED LIST (PLAYLIST) OPERATIONS
  * ============================================================================
  */
 
@@ -239,14 +153,12 @@ Song *createSongNode(int id, const char *title, const char *artist, int duration
     return newSong;
 }
 
-// Add song to the end of Doubly Linked List
 void insertSong(const char *title, const char *artist, int duration) {
     Song *newSong = createSongNode(0, title, artist, duration);
     if (!newSong) return;
 
     if (head == NULL) {
         head = tail = newSong;
-        currentSong = head;
         printf("\n[*] Playlist initialized with first track: \"%s\"!\n", newSong->title);
     } else {
         tail->next = newSong;
@@ -256,7 +168,6 @@ void insertSong(const char *title, const char *artist, int duration) {
     }
 }
 
-// Search song by ID in the Doubly Linked List
 Song *searchSongById(int id) {
     Song *temp = head;
     while (temp != NULL) {
@@ -266,7 +177,6 @@ Song *searchSongById(int id) {
     return NULL;
 }
 
-// Delete a song from the Doubly Linked List
 int deleteSong(int id) {
     if (head == NULL) {
         printf("\n[!] Playlist is empty. Nothing to delete.\n");
@@ -279,18 +189,10 @@ int deleteSong(int id) {
         return 0;
     }
 
-    // If target is currently playing, advance or rewind currentSong
     if (currentSong == target) {
-        if (target->next != NULL) {
-            currentSong = target->next;
-        } else if (target->prev != NULL) {
-            currentSong = target->prev;
-        } else {
-            currentSong = NULL;
-        }
+        currentSong = NULL;
     }
 
-    // Unlink from Doubly Linked List
     if (target == head && target == tail) {
         head = tail = NULL;
     } else if (target == head) {
@@ -309,10 +211,9 @@ int deleteSong(int id) {
     return 1;
 }
 
-// Display complete playlist (traversal)
 void displayPlaylist(void) {
     printf("\n========================================================================================\n");
-    printf("                                ACTIVE MUSIC PLAYLIST                                   \n");
+    printf("                                     MUSIC PLAYLIST                                     \n");
     printf("========================================================================================\n");
     if (head == NULL) {
         printf(" [!] The playlist is currently empty.\n");
@@ -335,170 +236,63 @@ void displayPlaylist(void) {
         temp = temp->next;
     }
     printf("========================================================================================\n");
-    printf(" Loop Mode: %s | Total Songs: %d\n", isLoopMode ? "ON (Infinite Repeat)" : "OFF (Sequential)", index - 1);
+    printf(" Total Songs: %d\n", index - 1);
 }
 
-// Search songs by title or artist keyword
-void searchSongs(void) {
+/* ============================================================================
+ * 4. PLAYBACK CONTROLLER
+ * ============================================================================
+ */
+
+void displayNowPlaying(Song *s) {
+    if (s == NULL) return;
+    char timeStr[16];
+    formatTime(s->duration, timeStr);
+
+    printf("\n================================================================\n");
+    printf(" [>] NOW PLAYING: \"%s\" by %s\n", s->title, s->artist);
+    printf("     Duration: %s | Status: Playing\n", timeStr);
+    printf("================================================================\n");
+}
+
+void playByTitleOrArtist(void) {
     if (head == NULL) {
-        printf("\n[!] Playlist is empty. Nothing to search.\n");
+        printf("\n[!] Playlist is empty. Add songs first.\n");
         return;
     }
 
     char query[MAX_STR];
-    printf("\nEnter search keyword (Title or Artist): ");
+    printf("\nEnter Song Title or Artist to play: ");
     scanf(" %[^\n]", query);
     trimNewline(query);
 
-    printf("\n--- Search Results for \"%s\" ---\n", query);
     Song *temp = head;
-    int found = 0;
-    char timeStr[16];
+    Song *match = NULL;
 
-    printf(" %-4s | %-26s | %-22s | %-8s\n", "ID", "Title", "Artist", "Duration");
-    printf("----------------------------------------------------------------\n");
     while (temp != NULL) {
         if (strCaseContains(temp->title, query) || strCaseContains(temp->artist, query)) {
-            formatTime(temp->duration, timeStr);
-            printf(" %-4d | %-26s | %-22s | %-8s\n", temp->id, temp->title, temp->artist, timeStr);
-            found++;
+            match = temp;
+            break;
         }
         temp = temp->next;
     }
 
-    if (!found) {
-        printf(" [!] No songs matched your search query.\n");
-    } else {
-        printf(" Found %d matching song(s).\n", found);
+    if (match == NULL) {
+        printf("\n[!] No song found matching \"%s\". Please check the spelling or view playlist.\n", query);
+        return;
     }
+
+    // Save previous playing song to history stack
+    if (currentSong != NULL && currentSong != match) {
+        pushHistory(currentSong);
+    }
+
+    currentSong = match;
+    displayNowPlaying(currentSong);
 }
 
 /* ============================================================================
- * 5. PLAYBACK CONTROLLER
- * ============================================================================
- */
-
-// Simulated visual audio playback progress bar
-void simulatePlaybackVisual(Song *s) {
-    if (s == NULL) return;
-    char totalTime[16];
-    formatTime(s->duration, totalTime);
-
-    printf("\n----------------------------------------------------------------\n");
-    printf(" [>] NOW PLAYING: \"%s\" by %s\n", s->title, s->artist);
-    printf("     Track Duration: %s | Audio Engine: Active\n", totalTime);
-    printf("     Progress: [");
-
-    // Quick visual progress simulation (10 blocks)
-    for (int i = 0; i < 20; i++) {
-        printf("#");
-        fflush(stdout);
-        Sleep(25); // 25ms delay for visual feedback
-    }
-    printf("] 100%%\n");
-    printf("----------------------------------------------------------------\n");
-}
-
-void playCurrent(void) {
-    if (currentSong == NULL) {
-        if (head != NULL) {
-            currentSong = head;
-        } else {
-            printf("\n[!] Playlist is empty. Add songs first.\n");
-            return;
-        }
-    }
-    simulatePlaybackVisual(currentSong);
-}
-
-void playNext(void) {
-    if (head == NULL) {
-        printf("\n[!] Playlist is empty.\n");
-        return;
-    }
-
-    // Step 1: Check if there is an item in the Up Next Queue (FIFO)
-    if (upNextQueue.front != NULL) {
-        if (currentSong != NULL) {
-            pushHistory(currentSong); // Push current to history stack
-        }
-        currentSong = dequeueSong();
-        printf("\n[Queue Triggered] Playing requested track from Up Next Queue!\n");
-        simulatePlaybackVisual(currentSong);
-        return;
-    }
-
-    // Step 2: Traverse to next node in Doubly Linked List
-    if (currentSong == NULL) {
-        currentSong = head;
-    } else {
-        pushHistory(currentSong); // Save to history
-        if (currentSong->next != NULL) {
-            currentSong = currentSong->next;
-        } else {
-            if (isLoopMode) {
-                printf("\n[*] End of playlist reached. Looping back to the beginning...\n");
-                currentSong = head;
-            } else {
-                printf("\n[!] Reached the end of the playlist. (Turn ON loop mode to repeat)\n");
-                return;
-            }
-        }
-    }
-    simulatePlaybackVisual(currentSong);
-}
-
-void playPrevious(void) {
-    if (head == NULL) {
-        printf("\n[!] Playlist is empty.\n");
-        return;
-    }
-
-    // Step 1: Check history stack for backtracking (LIFO)
-    Song *histSong = popHistory();
-    if (histSong != NULL) {
-        printf("\n[History Triggered] Rewinding to recently played track from History Stack!\n");
-        currentSong = histSong;
-        simulatePlaybackVisual(currentSong);
-        return;
-    }
-
-    // Step 2: Fallback to Doubly Linked List prev pointer
-    if (currentSong != NULL && currentSong->prev != NULL) {
-        currentSong = currentSong->prev;
-        simulatePlaybackVisual(currentSong);
-    } else if (isLoopMode && tail != NULL) {
-        printf("\n[*] At the start of playlist. Looping to the end...\n");
-        currentSong = tail;
-        simulatePlaybackVisual(currentSong);
-    } else {
-        printf("\n[!] You are already at the first song. No previous history found.\n");
-    }
-}
-
-void queueSongOption(void) {
-    if (head == NULL) {
-        printf("\n[!] Playlist is empty.\n");
-        return;
-    }
-    int id;
-    printf("\nEnter Song ID to add to 'Play Next' queue: ");
-    if (scanf("%d", &id) != 1) {
-        clearInputBuffer();
-        printf("[!] Invalid input.\n");
-        return;
-    }
-    Song *s = searchSongById(id);
-    if (s == NULL) {
-        printf("[!] Song with ID %d not found.\n", id);
-        return;
-    }
-    enqueueSong(s);
-    printf("[+] Enqueued \"%s\" to Up Next Queue (Position: %d)\n", s->title, upNextQueue.count);
-}
-
-/* ============================================================================
- * 6. FILE PERSISTENCE (LOAD / SAVE PLAYLIST)
+ * 5. FILE PERSISTENCE
  * ============================================================================
  */
 
@@ -515,19 +309,16 @@ void savePlaylistToFile(void) {
         temp = temp->next;
     }
     fclose(fp);
-    printf("\n[v] Playlist saved to file: %s\n", FILE_NAME);
 }
 
 void loadPlaylistFromFile(void) {
     FILE *fp = fopen(FILE_NAME, "r");
     if (!fp) {
-        // If file doesn't exist, populate with initial default songs
         insertSong("Memories", "Maroon 5", 189);
         insertSong("Blinding Lights", "The Weeknd", 200);
         insertSong("Smooth Criminal", "Michael Jackson", 257);
         insertSong("Bohemian Rhapsody", "Queen", 354);
         insertSong("Shape of You", "Ed Sheeran", 233);
-        currentSong = head;
         savePlaylistToFile();
         return;
     }
@@ -566,11 +357,10 @@ void loadPlaylistFromFile(void) {
         }
     }
     fclose(fp);
-    currentSong = head;
 }
 
 /* ============================================================================
- * 7. INTERACTIVE CONSOLE MENU & MAIN
+ * 6. INTERACTIVE MENU & MAIN
  * ============================================================================
  */
 
@@ -584,29 +374,17 @@ void printBanner(void) {
 
 void printMenu(void) {
     printf("\n+----------------------- PLAYER CONTROLS -----------------------+\n");
-    printf("|  1. Display Active Playlist (Doubly Linked List)              |\n");
-    printf("|  2. Add New Song                                              |\n");
+    printf("|  1. Display Playlist                                          |\n");
+    printf("|  2. Add Song                                                  |\n");
     printf("|  3. Delete Song by ID                                         |\n");
-    printf("|  4. Search Song (By Title / Artist)                           |\n");
-    printf("|  5. Play / Resume Current Song                                |\n");
-    printf("|  6. Play Next Song (Queue Check -> DLL Next)                  |\n");
-    printf("|  7. Play Previous Song (Stack Check -> DLL Prev)              |\n");
-    printf("|  8. Add Song to 'Play Next' Queue (FIFO Queue)                |\n");
-    printf("|  9. View 'Play Next' Queue                                    |\n");
-    printf("| 10. View Recently Played History (LIFO Stack)                 |\n");
-    printf("| 11. Toggle Loop / Repeat Mode [%-3s]                           |\n", isLoopMode ? "ON" : "OFF");
-    printf("| 12. Save & Exit Program                                       |\n");
+    printf("|  4. Play Song by Title / Artist                               |\n");
+    printf("|  5. View Recently Played History                              |\n");
+    printf("|  6. Save & Exit Program                                       |\n");
     printf("+---------------------------------------------------------------+\n");
-    printf(" Enter your choice (1-12): ");
+    printf(" Enter your choice (1-6): ");
 }
 
 int main(void) {
-    // Enable ANSI console formatting support on Windows
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD dwMode = 0;
-    GetConsoleMode(hOut, &dwMode);
-    SetConsoleMode(hOut, dwMode | 0x0004);
-
     printBanner();
     loadPlaylistFromFile();
 
@@ -618,7 +396,7 @@ int main(void) {
         printMenu();
         if (scanf("%d", &choice) != 1) {
             clearInputBuffer();
-            printf("\n[!] Invalid input! Please enter a valid number (1-12).\n");
+            printf("\n[!] Invalid input! Please enter a valid number (1-6).\n");
             continue;
         }
 
@@ -635,7 +413,7 @@ int main(void) {
                 printf("Enter Artist Name: ");
                 scanf(" %[^\n]", artist);
                 trimNewline(artist);
-                printf("Enter Duration in seconds (e.g., 210 for 3m 30s): ");
+                printf("Enter Duration in seconds (e.g. 210 for 3m 30s): ");
                 if (scanf("%d", &duration) != 1 || duration <= 0) {
                     clearInputBuffer();
                     duration = 180;
@@ -657,39 +435,14 @@ int main(void) {
                 break;
 
             case 4:
-                searchSongs();
+                playByTitleOrArtist();
                 break;
 
             case 5:
-                playCurrent();
-                break;
-
-            case 6:
-                playNext();
-                break;
-
-            case 7:
-                playPrevious();
-                break;
-
-            case 8:
-                queueSongOption();
-                break;
-
-            case 9:
-                displayQueue();
-                break;
-
-            case 10:
                 displayHistory();
                 break;
 
-            case 11:
-                isLoopMode = !isLoopMode;
-                printf("\n[*] Loop Mode toggled to: %s\n", isLoopMode ? "ON" : "OFF");
-                break;
-
-            case 12:
+            case 6:
                 savePlaylistToFile();
                 printf("\n================================================================\n");
                 printf("       Thank you for using Music Playlist Management System!     \n");
@@ -697,7 +450,7 @@ int main(void) {
                 exit(0);
 
             default:
-                printf("\n[!] Invalid selection! Please enter an option between 1 and 12.\n");
+                printf("\n[!] Invalid selection! Please enter an option between 1 and 6.\n");
         }
     }
 
