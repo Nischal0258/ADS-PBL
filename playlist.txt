@@ -1,0 +1,5 @@
+1|Memories|Maroon 5|189
+2|Blinding Lights|The Weeknd|200
+3|Smooth Criminal|Michael Jackson|257
+4|Bohemian Rhapsody|Queen|354
+5|Shape of You|Ed Sheeran|233
